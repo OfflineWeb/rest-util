@@ -29,14 +29,12 @@ package offlineweb.common.restconnector;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import offlineweb.common.logger.annotations.Loggable;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -52,6 +50,34 @@ import java.util.Map;
  */
 @Loggable
 public class RESTClient {
+
+    /**
+     * Handler of HTTP HEAD request
+     * @param URL URL to connect
+     * @return header key-value, Map<String, String>
+     * @throws IOException
+     */
+    public static Map<String, String> head(String URL) throws IOException {
+        CloseableHttpClient httpClient = getHttpClient();
+        HttpHead httpHead = new HttpHead(URL);
+        addCommonHeader(httpHead);
+
+        ResponseHandler<Map<String, String>> responseHandler
+                = new ResponseHandler<Map<String, String>>() {
+            public Map<String, String> handleResponse(HttpResponse httpResponse)
+                    throws ClientProtocolException {
+                Map<String, String> headerMap = new HashMap<String, String>();
+                for (Header header : httpResponse.getAllHeaders()) {
+                    headerMap.put(header.getName(), header.getValue());
+                }
+
+                return headerMap;
+            }
+        };
+        Map<String, String> headerMap = httpClient.execute(httpHead, responseHandler);
+        closeHttpClient(httpClient);
+        return headerMap;
+    }
 
     /**
      * Handler of HTTP GET request
