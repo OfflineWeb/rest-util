@@ -41,6 +41,7 @@ import org.apache.http.impl.client.HttpClients;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,27 +55,31 @@ public class RESTClient {
     /**
      * Handler of HTTP HEAD request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @return header key-value, Map<String, String>
      * @throws IOException
      */
-    public static Map<String, String> head(String URL) throws IOException {
+    public static Map<String, Object> head(String URL, List<String> pathParams,
+                                           Map<String, String > queryParams) throws IOException {
         CloseableHttpClient httpClient = getHttpClient();
-        HttpHead httpHead = new HttpHead(URL);
+        HttpHead httpHead = new HttpHead(formUrl(URL, pathParams, queryParams));
         addCommonHeader(httpHead);
 
-        ResponseHandler<Map<String, String>> responseHandler
-                = new ResponseHandler<Map<String, String>>() {
-            public Map<String, String> handleResponse(HttpResponse httpResponse)
+        ResponseHandler<Map<String, Object>> responseHandler
+                = new ResponseHandler<Map<String, Object>>() {
+            public Map<String, Object> handleResponse(HttpResponse httpResponse)
                     throws ClientProtocolException {
-                Map<String, String> headerMap = new HashMap<String, String>();
+                Map<String, Object> headerMap = new HashMap<String, Object>();
                 for (Header header : httpResponse.getAllHeaders()) {
                     headerMap.put(header.getName(), header.getValue());
                 }
+                headerMap.put("status", httpResponse.getStatusLine().getStatusCode());
+                headerMap.put("msg", httpResponse.getStatusLine().getReasonPhrase());
 
                 return headerMap;
             }
         };
-        Map<String, String> headerMap = httpClient.execute(httpHead, responseHandler);
+        Map<String, Object> headerMap = httpClient.execute(httpHead, responseHandler);
         closeHttpClient(httpClient);
         return headerMap;
     }
@@ -87,36 +92,52 @@ public class RESTClient {
      * @throws IOException
      */
     public static <T> T get(String URL) throws IOException {
-        return get(URL, null, null);
+        return get(URL, null, null, null);
     }
 
     /**
      * Handler of HTTP GET request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T get(String URL, List<String> pathParams) throws IOException {
+        return get(URL, pathParams, null, null);
+    }
+
+    /**
+     * Handler of HTTP GET request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param <T> JSON object type, default is LinkedHashMap
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T> T get(String URL, Map<String, String> queryParams)
+    public static <T> T get(String URL, List<String> pathParams,
+                            Map<String, String> queryParams)
             throws IOException {
-        return get(URL, queryParams, null);
+        return get(URL, pathParams, queryParams, null);
     }
 
     /**
      * Handler of HTTP GET request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param headers Additional headers, key-value pair
      * @param <T> JSON object type, default is LinkedHashMap
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T> T get(String URL, Map<String, String> queryParams,
+    public static <T> T get(String URL, List<String> pathParams,
+                            Map<String, String> queryParams,
                             Map<String, String > headers)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
-        HttpGet httpGet = new HttpGet(formUrl(URL, queryParams));
+        HttpGet httpGet = new HttpGet(formUrl(URL, pathParams, queryParams));
         addHeader(httpGet, headers);
         addCommonHeader(httpGet);
 
@@ -136,7 +157,7 @@ public class RESTClient {
                     }
 
                 } else {
-                    throw new ClientProtocolException("Unexpected response status: " + status);
+                    throw new RESTConnectorException(response.getStatusLine());
                 }
             }
 
@@ -162,34 +183,51 @@ public class RESTClient {
     /**
      * Handler of HTTP PUT request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T put(String URL, List<String> pathParams) throws IOException {
+        return put(URL, pathParams, null, null, null);
+    }
+
+    /**
+     * Handler of HTTP PUT request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param <T> JSON object type, default is LinkedHashMap
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T> T put(String URL, Map<String, String> queryParams)
+    public static <T> T put(String URL, List<String> pathParams,
+                            Map<String, String> queryParams)
             throws IOException {
-        return post(URL, queryParams, null, null);
+        return put(URL, pathParams, queryParams, null, null);
     }
 
-    public static <T, M> T put(String URL, Map<String, String> queryParams, M requestBody)
+    public static <T, M> T put(String URL, List<String> pathParams,
+                               Map<String, String> queryParams, M requestBody)
             throws IOException {
-        return post(URL, queryParams, requestBody, null);
+        return put(URL, pathParams, queryParams, requestBody, null);
     }
     /**
      * Handler of HTTP PUT request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param headers Additional headers, key-value pair
      * @param <T> JSON object type, default is LinkedHashMap
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T, M> T put(String URL, Map<String, String> queryParams,
+    public static <T, M> T put(String URL, List<String> pathParams,
+                               Map<String, String> queryParams,
                              M requestBody, Map<String, String > headers)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
-        HttpPut httpPut = new HttpPut(formUrl(URL, queryParams));
+        HttpPut httpPut = new HttpPut(formUrl(URL, pathParams, queryParams));
         addHeader(httpPut, headers);
         addCommonHeader(httpPut);
         ObjectMapper objectMapper = getObjectMapper();
@@ -211,7 +249,7 @@ public class RESTClient {
                     }
 
                 } else {
-                    throw new ClientProtocolException("Unexpected response status: " + status);
+                    throw new RESTConnectorException(response.getStatusLine());
                 }
             }
 
@@ -231,25 +269,40 @@ public class RESTClient {
      * @throws IOException
      */
     public static <T> T post(String URL) throws IOException {
-        return post(URL, null, null, null);
+        return post(URL, null, null, null, null);
     }
 
     /**
      * Handler of HTTP POST request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T post(String URL, List<String> pathParams)
+            throws IOException {
+        return post(URL, pathParams, null, null, null);
+    }
+
+    /**
+     * Handler of HTTP POST request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param <T> JSON object type, default is LinkedHashMap
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T> T post(String URL, Map<String, String> queryParams)
+    public static <T> T post(String URL, List<String> pathParams, Map<String, String> queryParams)
             throws IOException {
-        return post(URL, queryParams, null, null);
+        return post(URL, pathParams, queryParams, null, null);
     }
 
     /**
      * Handler of HTTP POST request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param requestBody JSON body
      * @param <T> JSON object type, default is LinkedHashMap
@@ -257,13 +310,15 @@ public class RESTClient {
      * @return
      * @throws IOException
      */
-    public static <T, M> T post(String URL, Map<String, String> queryParams, M requestBody)
+    public static <T, M> T post(String URL, List<String> pathParams,
+                                Map<String, String> queryParams, M requestBody)
             throws IOException {
-        return post(URL, queryParams, requestBody, null);
+        return post(URL, pathParams, queryParams, requestBody, null);
     }
     /**
      * Handler of HTTP POST request
      * @param URL URL to connect
+     * @param pathParams a list of path parameters
      * @param queryParams queries to append to the URL
      * @param headers Additional headers, key-value pair
      * @param <T> JSON object type, default is LinkedHashMap
@@ -271,16 +326,18 @@ public class RESTClient {
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T, M> T post(String URL, Map<String, String> queryParams,
+    public static <T, M> T post(String URL, List<String> pathParams,
+                                Map<String, String> queryParams,
                                 M requestBody, Map<String, String > headers)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
-        HttpPost httpPost = new HttpPost(formUrl(URL, queryParams));
+        HttpPost httpPost = new HttpPost(formUrl(URL, pathParams, queryParams));
         addHeader(httpPost, headers);
         addCommonHeader(httpPost);
-        ObjectMapper objectMapper = getObjectMapper();
 
-        StringEntity jsonBody = new StringEntity(objectMapper.writeValueAsString(requestBody));
+        StringEntity jsonBody = new StringEntity(getObjectMapper()
+                .writeValueAsString(requestBody));
+        httpPost.setEntity(jsonBody);
         ResponseHandler<T> responseHandler = new ResponseHandler<T>() {
 
             public T handleResponse(final HttpResponse response)
@@ -297,7 +354,7 @@ public class RESTClient {
                     }
 
                 } else {
-                    throw new ClientProtocolException("Unexpected response status: " + status);
+                    throw new RESTConnectorException(response.getStatusLine());
                 }
             }
 
@@ -323,21 +380,35 @@ public class RESTClient {
         }
 
         for (Map.Entry<String, String> header: headers.entrySet()) {
-            httpRequest.addHeader(header.getKey(), header.getValue());
+            httpRequest.setHeader(header.getKey(), header.getValue());
         }
     }
 
-    private static String formUrl(String URL, Map<String, String> queryParams) {
-        if (queryParams == null || queryParams.isEmpty()) {
+    private static String formUrl(String URL, List<String> pathParams,
+                                  Map<String, String> queryParams) {
+        if ((pathParams == null || pathParams.isEmpty())
+                && (queryParams == null || queryParams.isEmpty())) {
             return URL;
         }
 
-        StringBuilder urlBuilder = new StringBuilder(URL).append("?");
-        for (Map.Entry<String, String> param: queryParams.entrySet()) {
-            urlBuilder.append(param.getKey())
-                    .append("=")
-                    .append(param.getValue())
-                    .append("&");
+        StringBuilder urlBuilder = new StringBuilder(URL);
+        if (pathParams != null && !pathParams.isEmpty()) {
+            urlBuilder.append("/");
+            for (String param : pathParams) {
+                urlBuilder.append(param).append("/");
+            }
+        }
+
+        urlBuilder = urlBuilder.deleteCharAt(urlBuilder.length() - 1);
+
+        if (queryParams != null && !queryParams.isEmpty()) {
+            urlBuilder = urlBuilder.append("?");
+            for (Map.Entry<String, String> param: queryParams.entrySet()) {
+                urlBuilder.append(param.getKey())
+                        .append("=")
+                        .append(param.getValue())
+                        .append("&");
+            }
         }
 
         return urlBuilder.substring(0, urlBuilder.length() - 1);
