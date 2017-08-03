@@ -366,6 +366,110 @@ public class RESTClient {
         return responseBody;
     }
 
+    /**
+     * Handler of HTTP DELETE request
+     * @param URL URL to connect
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T delete(String URL) throws IOException {
+        return delete(URL, null, null, null, null);
+    }
+
+    /**
+     * Handler of HTTP DELETE request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T delete(String URL, List<String> pathParams)
+            throws IOException {
+        return delete(URL, pathParams, null, null, null);
+    }
+
+    /**
+     * Handler of HTTP DELETE request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param queryParams queries to append to the URL
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T> T delete(String URL, List<String> pathParams, Map<String, String> queryParams)
+            throws IOException {
+        return delete(URL, pathParams, queryParams, null, null);
+    }
+
+    /**
+     * Handler of HTTP DELETE request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param queryParams queries to append to the URL
+     * @param requestBody JSON body
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @param <M> JSON object type, default is Object
+     * @return
+     * @throws IOException
+     */
+    public static <T, M> T delete(String URL, List<String> pathParams,
+                                Map<String, String> queryParams, M requestBody)
+            throws IOException {
+        return delete(URL, pathParams, queryParams, requestBody, null);
+    }
+
+    /**
+     * Handler of HTTP DELETE request
+     * @param URL URL to connect
+     * @param pathParams a list of path parameters
+     * @param queryParams queries to append to the URL
+     * @param headers Additional headers, key-value pair
+     * @param <T> JSON object type, default is LinkedHashMap
+     * @return An object of type T, default is LinkedHashMap
+     * @throws IOException
+     */
+    public static <T, M> T delete(String URL, List<String> pathParams,
+                               Map<String, String> queryParams,
+                               M requestBody, Map<String, String > headers)  throws IOException {
+
+        CloseableHttpClient httpClient = getHttpClient();
+        HttpDelete httpDelete = new HttpDelete(formUrl(URL, pathParams, queryParams));
+        addHeader(httpDelete, headers);
+        addCommonHeader(httpDelete);
+        ObjectMapper objectMapper = getObjectMapper();
+
+        StringEntity jsonBody = new StringEntity(objectMapper.writeValueAsString(requestBody));
+        ResponseHandler<T> responseHandler = new ResponseHandler<T>() {
+
+            public T handleResponse(final HttpResponse response)
+                    throws ClientProtocolException, IOException {
+                int status = response.getStatusLine().getStatusCode();
+                if (status >= 200 && status < 300) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity == null) {
+                        return null;
+                    } else {
+                        T returnObj = getObjectMapper()
+                                .readValue(entity.getContent(), new TypeReference<T>(){});
+                        return returnObj;
+                    }
+
+                } else {
+                    throw new RESTConnectorException(response.getStatusLine());
+                }
+            }
+
+        };
+
+        T responseBody = httpClient.execute(httpDelete, responseHandler);
+
+        closeHttpClient(httpClient);
+        return responseBody;
+    }
+
 
     private static void addCommonHeader(HttpRequestBase httpRequest) {
         Map<String, String> commonHeaders = new HashMap<String, String>();
