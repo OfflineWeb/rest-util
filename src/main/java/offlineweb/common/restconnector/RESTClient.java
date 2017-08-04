@@ -26,20 +26,26 @@
 
 package offlineweb.common.restconnector;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import offlineweb.common.logger.annotations.Loggable;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicNameValuePair;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +57,12 @@ import java.util.Map;
  */
 @Loggable
 public class RESTClient {
+
+    public enum REQUEST_BODY {
+        JSON,
+        KEY_VALUE,
+        KEY_JSON
+    }
 
     /**
      * Handler of HTTP HEAD request
@@ -222,17 +234,19 @@ public class RESTClient {
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T, M> T put(String URL, List<String> pathParams,
+    public static <T, M> T put(String URL,
+                               List<String> pathParams,
                                Map<String, String> queryParams,
-                             M requestBody, Map<String, String > headers)  throws IOException {
+                               M requestBody,
+                               Map<String, String> headers,
+                               REQUEST_BODY... bodyType)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
         HttpPut httpPut = new HttpPut(formUrl(URL, pathParams, queryParams));
         addHeader(httpPut, headers);
         addCommonHeader(httpPut);
-        ObjectMapper objectMapper = getObjectMapper();
+        addRequestBody(httpPut, requestBody, bodyType);
 
-        StringEntity jsonBody = new StringEntity(objectMapper.writeValueAsString(requestBody));
         ResponseHandler<T> responseHandler = new ResponseHandler<T>() {
 
             public T handleResponse(final HttpResponse response)
@@ -326,18 +340,19 @@ public class RESTClient {
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T, M> T post(String URL, List<String> pathParams,
+    public static <T, M> T post(String URL,
+                                List<String> pathParams,
                                 Map<String, String> queryParams,
-                                M requestBody, Map<String, String > headers)  throws IOException {
+                                M requestBody,
+                                Map<String, String > headers,
+                                REQUEST_BODY... bodyType)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
         HttpPost httpPost = new HttpPost(formUrl(URL, pathParams, queryParams));
         addHeader(httpPost, headers);
         addCommonHeader(httpPost);
+        addRequestBody(httpPost, requestBody, bodyType);
 
-        StringEntity jsonBody = new StringEntity(getObjectMapper()
-                .writeValueAsString(requestBody));
-        httpPost.setEntity(jsonBody);
         ResponseHandler<T> responseHandler = new ResponseHandler<T>() {
 
             public T handleResponse(final HttpResponse response)
@@ -431,17 +446,18 @@ public class RESTClient {
      * @return An object of type T, default is LinkedHashMap
      * @throws IOException
      */
-    public static <T, M> T delete(String URL, List<String> pathParams,
-                               Map<String, String> queryParams,
-                               M requestBody, Map<String, String > headers)  throws IOException {
+    public static <T, M> T delete(String URL,
+                                  List<String> pathParams,
+                                  Map<String, String> queryParams,
+                                  M requestBody,
+                                  Map<String, String > headers,
+                                  REQUEST_BODY... bodyType)  throws IOException {
 
         CloseableHttpClient httpClient = getHttpClient();
         HttpDelete httpDelete = new HttpDelete(formUrl(URL, pathParams, queryParams));
         addHeader(httpDelete, headers);
         addCommonHeader(httpDelete);
-        ObjectMapper objectMapper = getObjectMapper();
 
-        StringEntity jsonBody = new StringEntity(objectMapper.writeValueAsString(requestBody));
         ResponseHandler<T> responseHandler = new ResponseHandler<T>() {
 
             public T handleResponse(final HttpResponse response)
@@ -461,7 +477,6 @@ public class RESTClient {
                     throw new RESTConnectorException(response.getStatusLine());
                 }
             }
-
         };
 
         T responseBody = httpClient.execute(httpDelete, responseHandler);
@@ -485,6 +500,57 @@ public class RESTClient {
 
         for (Map.Entry<String, String> header: headers.entrySet()) {
             httpRequest.setHeader(header.getKey(), header.getValue());
+        }
+    }
+
+    private static <M> void addRequestBody(HttpEntityEnclosingRequestBase httpRequest,
+                                           M requestBody,
+                                           REQUEST_BODY... bodyType) throws IOException {
+        if (requestBody == null) {
+            return;
+        }
+
+        REQUEST_BODY bType = (bodyType != null) ? bodyType[0] : REQUEST_BODY.JSON;
+
+        if (bType == REQUEST_BODY.KEY_VALUE) {
+            if (!(requestBody instanceof List || requestBody instanceof Map) ) {
+                throw new RESTConnectorException(requestBody);
+            }
+
+            UrlEncodedFormEntity formEntity = null;
+
+            if (requestBody instanceof List) {
+                 formEntity = new UrlEncodedFormEntity((List<NameValuePair>)requestBody);
+            } else if (requestBody instanceof Map) {
+                Map<String, String> requestMap = (Map<String, String>)requestBody;
+                List<NameValuePair> reqList = new ArrayList<>();
+                NameValuePair pair = null;
+                for (Map.Entry<String, String> reqEnt : requestMap.entrySet()) {
+                    pair = new BasicNameValuePair(reqEnt.getKey(), reqEnt.getValue());
+                    reqList.add(pair);
+                }
+                 formEntity = new UrlEncodedFormEntity((List<NameValuePair>)requestBody);
+            }
+
+            httpRequest.setEntity(formEntity);
+        } else if (bType == REQUEST_BODY.KEY_JSON) {
+            if (!(requestBody instanceof Map)) {
+                throw new RESTConnectorException(requestBody);
+            }
+            ObjectMapper objectMapper = getObjectMapper();
+            Map<String, Object> requestMap = (Map<String, Object>) requestBody;
+            StringBuilder bodyBuilder = new StringBuilder();
+            for (Map.Entry<String, Object> reqEnt : requestMap.entrySet()) {
+                bodyBuilder.append(reqEnt.getKey())
+                    .append("=")
+                    .append(objectMapper.writeValueAsString(reqEnt.getValue()));
+            }
+        } if (bType == REQUEST_BODY.JSON) {
+            ObjectMapper objectMapper = getObjectMapper();
+            StringEntity bodyEntity =
+                        new StringEntity(objectMapper.writeValueAsString(requestBody));
+
+            httpRequest.setEntity(bodyEntity);
         }
     }
 
@@ -520,6 +586,10 @@ public class RESTClient {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
+    protected static ObjectMapper getObjectMapper() {
+        return objectMapper;
+    }
+
     protected static CloseableHttpClient getHttpClient() {
         final CloseableHttpClient httpClient = HttpClients.createDefault();
         return httpClient;
@@ -536,7 +606,4 @@ public class RESTClient {
     }
 
 
-    protected static ObjectMapper getObjectMapper() {
-        return objectMapper;
-    }
 }

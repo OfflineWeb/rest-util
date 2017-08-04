@@ -55,4 +55,8 @@ public class RESTConnectorException extends RuntimeException {
         super(String.format("status : %d, message : %s",
                 statusLine.getStatusCode(), statusLine.getReasonPhrase()));
     }
+
+    public RESTConnectorException(Object object) {
+        super(object.toString());
+    }
 }
