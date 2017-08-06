@@ -569,8 +569,6 @@ public class RESTClient {
             }
         }
 
-        urlBuilder = urlBuilder.deleteCharAt(urlBuilder.length() - 1);
-
         if (queryParams != null && !queryParams.isEmpty()) {
             urlBuilder = urlBuilder.append("?");
             for (Map.Entry<String, String> param: queryParams.entrySet()) {
