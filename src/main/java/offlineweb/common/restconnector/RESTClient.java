@@ -26,7 +26,6 @@
 
 package offlineweb.common.restconnector;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import offlineweb.common.logger.annotations.Loggable;
@@ -44,7 +43,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +56,7 @@ import java.util.Map;
 @Loggable
 public class RESTClient {
 
+    /** defines the object type of the request body */
     public enum REQUEST_BODY {
         JSON,
         KEY_VALUE,
